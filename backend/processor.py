@@ -12,13 +12,17 @@ FFMPEG = imageio_ffmpeg.get_ffmpeg_exe()
 
 def download_video(url: str, job_id: str) -> str:
     output_path = f"/tmp/{job_id}.mp4"
-    subprocess.run([
+    result = subprocess.run([
         "yt-dlp",
         "-f", "best[ext=mp4]/best",
         "--ffmpeg-location", FFMPEG,
+        "--no-check-certificates",
+        "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         "-o", output_path,
         url
-    ], check=True)
+    ], capture_output=True, text=True)
+    if result.returncode != 0:
+        raise Exception(f"yt-dlp error: {result.stderr[-500:]}")
     return output_path
 
 def get_video_duration(path: str) -> float:
