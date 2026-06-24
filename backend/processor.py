@@ -12,12 +12,10 @@ FFMPEG = imageio_ffmpeg.get_ffmpeg_exe()
 COOKIES = os.environ.get("YOUTUBE_COOKIES", "")
 
 def get_cookies_file() -> str:
-    if not COOKIES:
-        return None
-    cookies_path = "/tmp/yt_cookies.txt"
-    with open(cookies_path, "w") as f:
-        f.write(COOKIES)
-    return cookies_path
+    cookies_path = os.path.join(os.path.dirname(__file__), "cookies.txt")
+    if os.path.exists(cookies_path):
+        return cookies_path
+    return None
 
 def download_video(url: str, job_id: str) -> str:
     output_path = f"/tmp/{job_id}.mp4"
