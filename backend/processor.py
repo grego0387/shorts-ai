@@ -14,8 +14,7 @@ def download_video(url: str, job_id: str) -> str:
     output_path = f"/tmp/{job_id}.mp4"
     subprocess.run([
         "yt-dlp",
-        "-f", "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]",
-        "--merge-output-format", "mp4",
+        "-f", "best[ext=mp4]/best",
         "--ffmpeg-location", FFMPEG,
         "-o", output_path,
         url
