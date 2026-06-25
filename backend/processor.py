@@ -24,7 +24,9 @@ def download_video(url: str, job_id: str) -> str:
         "-f", "best[ext=mp4]/best",
         "--ffmpeg-location", FFMPEG,
         "--no-check-certificates",
-        "--extractor-args", "youtube:player_client=android,web",
+        "--extractor-args", "youtube:player_client=web",
+        "--sleep-interval", "3",
+        "--max-sleep-interval", "6",
         "-o", output_path,
         url
     ]
