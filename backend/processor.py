@@ -10,26 +10,17 @@ client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
 FFMPEG = imageio_ffmpeg.get_ffmpeg_exe()
 
-def get_cookies_file() -> str:
-    cookies_path = os.path.join(os.path.dirname(__file__), "cookies.txt")
-    if os.path.exists(cookies_path):
-        return cookies_path
-    return None
-
 def download_video(url: str, job_id: str) -> str:
     output_path = f"/tmp/{job_id}.mp4"
-    cookies_path = get_cookies_file()
     cmd = [
         "yt-dlp",
         "-f", "best[ext=mp4]/best",
         "--ffmpeg-location", FFMPEG,
         "--no-check-certificates",
+        "--extractor-args", "youtube:player_client=android",
         "-o", output_path,
         url
     ]
-    if cookies_path:
-        cmd.insert(1, "--cookies")
-        cmd.insert(2, cookies_path)
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
         raise Exception(f"yt-dlp error: {result.stderr[-500:]}")
