@@ -10,34 +10,6 @@ client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
 FFMPEG = imageio_ffmpeg.get_ffmpeg_exe()
 
-def get_cookies_file() -> str:
-    cookies_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.txt")
-    if os.path.exists(cookies_path):
-        return cookies_path
-    return None
-
-def download_video(url: str, job_id: str) -> str:
-    output_path = f"/tmp/{job_id}.mp4"
-    cookies_path = get_cookies_file()
-    cmd = [
-        "yt-dlp",
-        "-f", "best[ext=mp4]/best",
-        "--ffmpeg-location", FFMPEG,
-        "--no-check-certificates",
-        "--extractor-args", "youtube:player_client=web",
-        "--sleep-interval", "3",
-        "--max-sleep-interval", "6",
-        "-o", output_path,
-        url
-    ]
-    if cookies_path:
-        cmd.insert(1, "--cookies")
-        cmd.insert(2, cookies_path)
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.returncode != 0:
-        raise Exception(f"yt-dlp error: {result.stderr[-800:]}")
-    return output_path
-
 def get_video_duration(path: str) -> float:
     ffprobe = FFMPEG.replace("ffmpeg", "ffprobe")
     result = subprocess.run([
@@ -48,10 +20,9 @@ def get_video_duration(path: str) -> float:
     data = json.loads(result.stdout)
     return float(data["format"]["duration"])
 
-def analyze_with_claude(duration: float, url: str) -> list:
+def analyze_with_claude(duration: float) -> list:
     prompt = f"""You are a viral short-form video expert.
-A YouTube video has been uploaded with URL: {url}
-Total duration: {duration:.0f} seconds ({duration/60:.1f} minutes).
+A video has been uploaded with total duration: {duration:.0f} seconds ({duration/60:.1f} minutes).
 
 Generate 5 suggested clip segments that would make great YouTube Shorts / TikToks.
 Each clip should be 30-59 seconds long.
@@ -84,14 +55,11 @@ def cut_clip(video_path: str, start: int, end: int, output_path: str):
         "-y", output_path
     ], check=True)
 
-def process_video(job_id: str, url: str):
+def process_uploaded_video(job_id: str, video_path: str):
     try:
-        job_store[job_id]["status"] = "downloading"
-        video_path = download_video(url, job_id)
-
         job_store[job_id]["status"] = "analyzing"
         duration = get_video_duration(video_path)
-        clips_meta = analyze_with_claude(duration, url)
+        clips_meta = analyze_with_claude(duration)
 
         job_store[job_id]["status"] = "cutting"
         clips = []
