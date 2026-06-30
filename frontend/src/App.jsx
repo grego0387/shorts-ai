@@ -9,7 +9,8 @@ const PLATFORMS = [
 ];
 
 export default function App() {
-  const [url, setUrl] = useState("");
+  const [file, setFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
   const [jobId, setJobId] = useState(null);
   const [job, setJob] = useState(null);
   const [selected, setSelected] = useState(new Set());
@@ -17,8 +18,8 @@ export default function App() {
   const [publishing, setPublishing] = useState(false);
   const [published, setPublished] = useState(false);
   const pollRef = useRef(null);
+  const fileInputRef = useRef(null);
 
-  // Poll job status
   useEffect(() => {
     if (!jobId) return;
     pollRef.current = setInterval(async () => {
@@ -32,17 +33,31 @@ export default function App() {
     return () => clearInterval(pollRef.current);
   }, [jobId]);
 
-  const analyze = async () => {
-    if (!url.trim()) return;
+  const handleFileSelect = (e) => {
+    const f = e.target.files[0];
+    if (f) setFile(f);
+  };
+
+  const upload = async () => {
+    if (!file) return;
+    setUploading(true);
     setJob(null); setSelected(new Set()); setPublished(false);
-    const res = await fetch(`${API_URL}/analyze`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url })
-    });
-    const data = await res.json();
-    setJobId(data.job_id);
-    setJob({ status: "downloading", clips: [] });
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await fetch(`${API_URL}/upload`, {
+        method: "POST",
+        body: formData
+      });
+      const data = await res.json();
+      setJobId(data.job_id);
+      setJob({ status: "analyzing", clips: [] });
+    } catch (err) {
+      setJob({ status: "error", error: "No se pudo subir el video", clips: [] });
+    }
+    setUploading(false);
   };
 
   const toggleClip = (id) => {
@@ -63,25 +78,25 @@ export default function App() {
 
   const downloadClip = (clip) => {
     const a = document.createElement("a");
-    a.href = `${API_URL}/download/${clip.id}?job=${jobId}`;
+    a.href = `${API_URL}/download/${jobId}/${clip.id}`;
     a.download = `${clip.title}.mp4`;
     a.click();
   };
 
   const publish = async () => {
     setPublishing(true);
-    await new Promise(r => setTimeout(r, 2000)); // simulate publish
+    await new Promise(r => setTimeout(r, 2000));
     setPublishing(false);
     setPublished(true);
   };
 
   const reset = () => {
-    setUrl(""); setJobId(null); setJob(null);
+    setFile(null); setJobId(null); setJob(null);
     setSelected(new Set()); setPublished(false);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const statusLabel = {
-    downloading: "⬇️ Descargando video...",
     analyzing: "🤖 IA analizando momentos...",
     cutting: "✂️ Cortando clips...",
     done: "✅ ¡Clips listos!",
@@ -92,33 +107,56 @@ export default function App() {
     <div style={{ minHeight: "100vh", background: "#f5f5f7", padding: "2rem 1rem", fontFamily: "system-ui, sans-serif" }}>
       <div style={{ maxWidth: 640, margin: "0 auto" }}>
 
-        {/* Header */}
         <div style={{ marginBottom: 24 }}>
           <h1 style={{ fontSize: 22, fontWeight: 600, color: "#1d1d1f", margin: 0 }}>⚡ Shorts AI</h1>
-          <p style={{ fontSize: 14, color: "#6e6e73", margin: "4px 0 0" }}>Pega un link, la IA detecta los mejores momentos</p>
+          <p style={{ fontSize: 14, color: "#6e6e73", margin: "4px 0 0" }}>Sube tu video, la IA detecta los mejores momentos</p>
         </div>
 
-        {/* Step 1: URL Input */}
         <div style={card}>
-          <div style={stepLabel}>Paso 1 — Video de YouTube</div>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={stepLabel}>Paso 1 — Sube tu video</div>
+
+          <div
+            onClick={() => fileInputRef.current?.click()}
+            style={{
+              border: "2px dashed #d1d1d6",
+              borderRadius: 12,
+              padding: "2rem 1rem",
+              textAlign: "center",
+              cursor: "pointer",
+              background: file ? "#f0effe" : "#fafafa"
+            }}
+          >
             <input
-              value={url}
-              onChange={e => setUrl(e.target.value)}
-              placeholder="https://www.youtube.com/watch?v=..."
-              style={input}
-              onKeyDown={e => e.key === "Enter" && analyze()}
+              ref={fileInputRef}
+              type="file"
+              accept="video/*"
+              onChange={handleFileSelect}
+              style={{ display: "none" }}
             />
-            <button onClick={analyze} style={btnPrimary} disabled={!url.trim() || (job && job.status !== "done" && job.status !== "error")}>
-              Analizar ↗
-            </button>
+            {file ? (
+              <div>
+                <p style={{ fontSize: 14, fontWeight: 500, color: "#1d1d1f", margin: 0 }}>🎬 {file.name}</p>
+                <p style={{ fontSize: 12, color: "#6e6e73", margin: "4px 0 0" }}>{(file.size / (1024*1024)).toFixed(1)} MB · Haz clic para cambiar</p>
+              </div>
+            ) : (
+              <div>
+                <p style={{ fontSize: 32, margin: 0 }}>📹</p>
+                <p style={{ fontSize: 14, color: "#1d1d1f", margin: "8px 0 0", fontWeight: 500 }}>Haz clic para seleccionar un video</p>
+                <p style={{ fontSize: 12, color: "#6e6e73", margin: "4px 0 0" }}>MP4, MOV, AVI — hasta 500MB</p>
+              </div>
+            )}
           </div>
 
-          {/* Progress */}
+          {file && (!job || job.status === "error") && (
+            <button onClick={upload} style={{ ...btnPrimary, width: "100%", marginTop: 12 }} disabled={uploading}>
+              {uploading ? "Subiendo..." : "🚀 Analizar video"}
+            </button>
+          )}
+
           {job && job.status !== "done" && job.status !== "error" && (
             <div style={{ marginTop: 12 }}>
               <div style={{ height: 4, background: "#e5e5ea", borderRadius: 2, overflow: "hidden" }}>
-                <div style={{ height: "100%", background: "#534AB7", borderRadius: 2, width: job.status === "downloading" ? "30%" : job.status === "analyzing" ? "65%" : "90%", transition: "width 0.5s" }} />
+                <div style={{ height: "100%", background: "#534AB7", borderRadius: 2, width: job.status === "analyzing" ? "50%" : "85%", transition: "width 0.5s" }} />
               </div>
               <p style={{ fontSize: 12, color: "#6e6e73", marginTop: 6 }}>{statusLabel[job.status]}</p>
             </div>
@@ -129,7 +167,6 @@ export default function App() {
           )}
         </div>
 
-        {/* Step 2: Clips */}
         {job?.status === "done" && job.clips.length > 0 && !published && (
           <div style={card}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
@@ -171,7 +208,6 @@ export default function App() {
               </div>
             ))}
 
-            {/* Step 3: Platforms */}
             <div style={{ marginTop: 20 }}>
               <div style={stepLabel}>Paso 3 — Publicar en</div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
@@ -203,7 +239,6 @@ export default function App() {
           </div>
         )}
 
-        {/* Published */}
         {published && (
           <div style={card}>
             <p style={{ fontSize: 16, fontWeight: 600, color: "#34c759", margin: "0 0 12px" }}>✅ ¡Publicado exitosamente!</p>
@@ -230,7 +265,6 @@ export default function App() {
 
 const card = { background: "#fff", borderRadius: 14, padding: "1.25rem", marginBottom: "1rem", boxShadow: "0 1px 3px rgba(0,0,0,0.08)" };
 const stepLabel = { fontSize: 11, fontWeight: 600, color: "#8e8e93", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 };
-const input = { flex: 1, height: 40, padding: "0 12px", borderRadius: 10, border: "1px solid #e5e5ea", fontSize: 14, outline: "none", color: "#1d1d1f" };
 const btnPrimary = { height: 40, padding: "0 18px", borderRadius: 10, border: "none", background: "#534AB7", color: "#fff", fontSize: 14, fontWeight: 500, cursor: "pointer", whiteSpace: "nowrap" };
 const btnGhost = { padding: "6px 12px", borderRadius: 8, border: "1px solid #e5e5ea", background: "#fff", fontSize: 13, cursor: "pointer", color: "#1d1d1f" };
 const clipRow = { borderRadius: 10, padding: "10px 12px", marginBottom: 8, cursor: "pointer", transition: "all 0.15s" };
